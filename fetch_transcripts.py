@@ -10,8 +10,8 @@ from googleapiclient.http import MediaInMemoryUpload
 from playwright.sync_api import sync_playwright
 
 # --- CONFIGURATION & ENV VARS ---
-FIVE9_USER = os.environ.get("FIVE9_USER", "div5vcc@bonadmin.com")
-FIVE9_PASS = os.environ.get("FIVE9_PASS", "Div5Rules!")
+FIVE9_USER = os.environ.get("FIVE9_USER")
+FIVE9_PASS = os.environ.get("FIVE9_PASS")
 GOOGLE_FOLDER_ID = os.environ.get("GOOGLE_FOLDER_ID", "1OC6DngtZwWse5o9DTqI8P2sIiSddn5vv")
 HANDLED_FOLDER_ID = "1I4Xfnuvm31-rhEXypFVqFkpqzjR-a5nU"
 CLIENT_SECRET_FILE = "client_secret.json"
