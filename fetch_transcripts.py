@@ -13,6 +13,7 @@ from playwright.sync_api import sync_playwright
 FIVE9_USER = os.environ.get("FIVE9_USER", "div5vcc@bonadmin.com")
 FIVE9_PASS = os.environ.get("FIVE9_PASS", "Div5Rules!")
 GOOGLE_FOLDER_ID = os.environ.get("GOOGLE_FOLDER_ID", "1OC6DngtZwWse5o9DTqI8P2sIiSddn5vv")
+HANDLED_FOLDER_ID = "1I4Xfnuvm31-rhEXypFVqFkpqzjR-a5nU"
 CLIENT_SECRET_FILE = "client_secret.json"
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
@@ -40,8 +41,8 @@ def get_drive_service():
 
 
 def is_already_in_drive(drive_service, call_id):
-    """Checks Google Drive to avoid downloading duplicates."""
-    query = f"'{GOOGLE_FOLDER_ID}' in parents and name contains '{call_id}' and trashed = false"
+    """Checks both the Source and Handled folders to avoid duplicates."""
+    query = f"('{GOOGLE_FOLDER_ID}' in parents or '{HANDLED_FOLDER_ID}' in parents) and name contains '{call_id}' and trashed = false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get("files", [])
     return len(files) > 0
