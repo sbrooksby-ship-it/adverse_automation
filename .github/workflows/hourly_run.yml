@@ -26,11 +26,11 @@ jobs:
 
     - name: Restore Google OAuth Token
       run: |
-        echo "${{ secrets.TOKEN_PICKLE }}" | base64 -d > token.pickle
+        echo "${{ secrets.TOKEN_PICKLE }}" | tr -d ' \t\r\n' | base64 --decode > token.pickle
 
     - name: Restore Google Client Secret
       run: |
-        echo "${{ secrets.CLIENT_SECRET_JSON }}" | base64 -d > client_secret.json
+        echo "${{ secrets.CLIENT_SECRET_JSON }}" | tr -d ' \t\r\n' | base64 --decode > client_secret.json
 
     - name: Execute Extraction Script
       env:
