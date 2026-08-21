@@ -2,7 +2,7 @@ name: Five9 Transcript Extractor
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Runs at the top of every hour
+    - cron: '17 * * * *'  # Runs at 17 minutes past every hour
   workflow_dispatch:     # Allows manual triggers from GitHub UI
 
 jobs:
