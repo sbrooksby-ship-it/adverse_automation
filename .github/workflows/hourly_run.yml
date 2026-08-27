@@ -2,8 +2,13 @@ name: Five9 Transcript Extractor
 
 on:
   schedule:
-    - cron: '17 * * * *'  # Runs at 17 minutes past every hour
+    - cron: '7 * * * *'  # Runs at 7 minutes past every hour (off-peak to prevent delays)
   workflow_dispatch:     # Allows manual triggers from GitHub UI
+
+# Prevents multiple concurrent runs from interfering with each other
+concurrency:
+  group: five9-extractor-run
+  cancel-in-progress: false
 
 jobs:
   run-extractor:
@@ -11,12 +16,13 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+        cache: 'pip'  # Caches pip packages to speed up step execution
 
     - name: Install Dependencies
       run: |
