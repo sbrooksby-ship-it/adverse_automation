@@ -46,3 +46,4 @@ jobs:
         HEADLESS_MODE: "true"
       run: |
         python fetch_transcripts.py
+# Updating schedule
