@@ -72,9 +72,9 @@ def run_hourly_extraction():
         browser = p.chromium.launch(headless=headless_mode)
         
         if os.path.exists("state.json"):
-            context = browser.new_context(storage_state="state.json")
+            context = browser.new_context(storage_state="state.json", accept_downloads=True)
         else:
-            context = browser.new_context()
+            context = browser.new_context(accept_downloads=True)
             
         page = context.new_page()
 
@@ -118,7 +118,7 @@ def run_hourly_extraction():
             ai_frame.get_by_role("menuitem", name="Transcripts").click()
             page.wait_for_timeout(8000)
 
-            # --- APPLY FILTER: TODAY & UPDATE ---
+            # --- APPLY FILTER: TODAY & SPECIFIC TOKENS ---
             print("Setting date filter to 'Today'...")
             grid_frame.get_by_role("button", name="Last 7 Days").click()
             page.wait_for_timeout(1000)
@@ -126,6 +126,18 @@ def run_hourly_extraction():
             grid_frame.get_by_role("menuitem", name="Today").click()
             page.wait_for_timeout(1000)
             
+            print("Applying specific filter combinations...")
+            grid_frame.get_by_test_id("filter-token").nth(1).click()
+            grid_frame.locator("div:nth-child(2) > .Icon-sc-7y0t4i-0 > .StyledIconBase-ea9ulj-0").click()
+            grid_frame.get_by_test_id("filter-token").nth(2).click()
+            grid_frame.get_by_test_id("filter-token").nth(2).click()
+            grid_frame.get_by_test_id("filter-token").nth(2).click()
+            grid_frame.locator("div:nth-child(2) > .Icon-sc-7y0t4i-0 > .StyledIconBase-ea9ulj-0").click()
+            grid_frame.locator("[id=\"-438850558\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click()
+            grid_frame.locator("[id=\"160004500\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click()
+            grid_frame.get_by_role("button", name="Done").click()
+            page.wait_for_timeout(1000)
+
             print("Clicking 'Update' refresh button...")
             grid_frame.get_by_role("button", name="Update").click()
             page.wait_for_timeout(8000)
