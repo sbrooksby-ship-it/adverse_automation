@@ -3,7 +3,7 @@ name: Five9 Transcript Extractor
 on:
   schedule:
     - cron: '37 * * * *'  # Runs once an hour, at minute 37 (UTC)
-  workflow_dispatch:     # Allows manual triggers from GitHub UI
+  workflow_dispatch:      # Allows manual triggers from GitHub UI
 
 # Prevents multiple concurrent runs from interfering with each other
 concurrency:
@@ -38,6 +38,15 @@ jobs:
       run: |
         echo "${{ secrets.CLIENT_SECRET_JSON }}" | tr -d ' \t\r\n' | base64 --decode > client_secret.json
 
+    # NEW: Cache Playwright login state so it doesn't have to log in from scratch every hour
+    - name: Cache Playwright State
+      uses: actions/cache@v3
+      with:
+        path: state.json
+        key: five9-state-${{ github.run_id }}
+        restore-keys: |
+          five9-state-
+
     - name: Execute Extraction Script
       env:
         FIVE9_USER: ${{ secrets.FIVE9_USER }}
@@ -46,4 +55,12 @@ jobs:
         HEADLESS_MODE: "true"
       run: |
         python fetch_transcripts.py
-# Updating schedule
+
+    # NEW: If the script fails, upload the error_screenshot.png so you can see what went wrong in GitHub
+    - name: Upload Error Screenshot
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: error-screenshot
+        path: error_screenshot.png
+        retention-days: 7
