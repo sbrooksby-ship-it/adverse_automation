@@ -93,8 +93,9 @@ def run_hourly_extraction():
                 page.get_by_role("button", name="Next").click()
                 page.wait_for_timeout(2000)
 
-                page.get_by_role("textbox", name="Password Password").click()
-                page.get_by_role("textbox", name="Password Password").fill(FIVE9_PASS)
+                password_field = page.get_by_role("textbox", name="Password Password")
+                password_field.click()
+                password_field.fill(FIVE9_PASS)
                 page.get_by_role("button", name="Sign In").click()
                 
                 print("Credentials submitted. Waiting for dashboard...")
@@ -106,7 +107,7 @@ def run_hourly_extraction():
                 print("Active session detected! AI Insights is visible.")
 
             print("Clicking AI Insights tile...")
-            page.get_by_text("AI Insights").first.click()
+            page.locator("div").filter(has_text=re.compile(r"^AI InsightsExplore actionable AI-driven analytics$")).first.click()
             page.wait_for_timeout(6000)
 
             # --- DEFINE IFRAME HIERARCHY ---
@@ -115,122 +116,106 @@ def run_hourly_extraction():
             grid_frame = transcripts_frame.frame_locator('iframe')
 
             print("Navigating to Transcripts tab...")
-            ai_frame.get_by_role("menuitem", name="Transcripts").click()
-            page.wait_for_timeout(8000)
+            ai_frame.get_by_text("Transcripts").click()
+            page.wait_for_timeout(5000)
 
-            # --- APPLY FILTER: TODAY & SPECIFIC TOKENS ---
-            print("Setting date filter to 'Today'...")
-            grid_frame.get_by_role("button", name="Last 7 Days").click()
-            page.wait_for_timeout(1000)
-            
-            grid_frame.get_by_role("menuitem", name="Today").click()
-            page.wait_for_timeout(1000)
-            
-            print("Applying specific filter combinations...")
-            grid_frame.get_by_test_id("filter-token").nth(1).click()
-            grid_frame.locator("div:nth-child(2) > .Icon-sc-7y0t4i-0 > .StyledIconBase-ea9ulj-0").click()
+            # --- APPLY RELIABLE FILTERS ---
+            print("Applying filter combinations...")
             grid_frame.get_by_test_id("filter-token").nth(2).click()
-            grid_frame.get_by_test_id("filter-token").nth(2).click()
-            grid_frame.get_by_test_id("filter-token").nth(2).click()
-            grid_frame.locator("div:nth-child(2) > .Icon-sc-7y0t4i-0 > .StyledIconBase-ea9ulj-0").click()
-            grid_frame.locator("[id=\"-438850558\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click()
-            grid_frame.locator("[id=\"160004500\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click()
+            grid_frame.get_by_test_id("surface-content").get_by_role("combobox", name="any value").click()
+            grid_frame.get_by_role("dialog", name="contains contains Add").get_by_placeholder("any value").fill("Customer Sale")
             grid_frame.get_by_role("button", name="Done").click()
-            page.wait_for_timeout(1000)
+
+            grid_frame.get_by_role("button", name="Last 7 Days").click()
+            grid_frame.get_by_role("menuitem", name="Today").click()
+
+            grid_frame.get_by_role("button", name="contains Customer Sale").click()
+            grid_frame.locator("div").filter(has_text=re.compile(r"^Customer SaleDelete$")).click()
+            grid_frame.get_by_role("dialog", name="contains contains Customer").get_by_label("any value").fill("New Sales")
+            grid_frame.get_by_role("button", name="Done").click()
 
             print("Clicking 'Update' refresh button...")
             grid_frame.get_by_role("button", name="Update").click()
-            page.wait_for_timeout(8000)
+            page.wait_for_timeout(6000)
 
-            # --- EXTRACT ALL CALL IDs (SCROLL & COLLECT) ---
-            print("Scrolling grid to extract all virtualized Call IDs...")
-            js_scroll_and_extract = r"""
-            async () => {
-                let container = document.querySelector('div[role="grid"], .ag-body-viewport, .MuiDataGrid-virtualScroller, div[class*="scroll"]') || document.body;
-                let foundIds = new Set();
-                let previousSize = -1;
-                let unchangedRounds = 0;
+            # --- ITERATIVE SCROLL AND PROCESS LOOP ---
+            print("Processing virtualized grid items...")
+            processed_call_ids = set()
+            consecutive_empty_scrolls = 0
 
-                while (unchangedRounds < 4) {
-                    let elements = Array.from(document.querySelectorAll('*'));
-                    for (let el of elements) {
-                        if (el.children.length === 0) {
-                            let txt = el.innerText ? el.innerText.trim() : (el.textContent ? el.textContent.trim() : '');
-                            if (txt.match(/^\d{7}$/)) {
-                                foundIds.add(txt);
-                            }
-                        }
+            while consecutive_empty_scrolls < 4:
+                # Find all currently visible call buttons (matching 6 to 12 digit IDs)
+                visible_buttons = grid_frame.get_by_role("button", name=re.compile(r"^\d{6,12}$")).all()
+                found_new_in_pass = False
+
+                for btn in visible_buttons:
+                    try:
+                        call_id = btn.inner_text().strip()
+                        if call_id in processed_call_ids:
+                            continue
+
+                        processed_call_ids.add(call_id)
+                        found_new_in_pass = True
+                        print(f"\n--- Processing Call ID: {call_id} ---")
+
+                        if is_already_in_drive(drive_service, call_id):
+                            print(f"Skipping Call ID {call_id} (Already exists in Google Drive).")
+                            continue
+
+                        # Ensure element is visible and click
+                        btn.scroll_into_view_if_needed()
+                        btn.click(force=True)
+                        page.wait_for_timeout(1500)
+
+                        # Open transcript view
+                        grid_frame.get_by_role("menuitem", name=re.compile("View Transcript")).click()
+                        page.wait_for_timeout(3000)
+
+                        # Open menu dropdown & download
+                        transcripts_frame.get_by_test_id("Dropdown").get_by_role("button", name="Transcript").click()
+                        page.wait_for_timeout(1000)
+
+                        with page.expect_download(timeout=15000) as download_info:
+                            transcripts_frame.get_by_role("menuitem", name="Download Transcript").click()
+
+                        download = download_info.value
+                        temp_filepath = os.path.join(os.getcwd(), download.suggested_filename)
+                        download.save_as(temp_filepath)
+
+                        with open(temp_filepath, "r", encoding="utf-8") as f:
+                            file_content = f.read()
+
+                        upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
+                        os.remove(temp_filepath)
+
+                        # Close Modal
+                        transcripts_frame.get_by_role("button", name="Close").click()
+                        page.wait_for_timeout(1500)
+
+                    except Exception as ex:
+                        print(f"Failed to process Call ID {call_id}. Error: {ex}")
+                        if not page.is_closed():
+                            page.keyboard.press("Escape")
+                            page.wait_for_timeout(1500)
+
+                # Scroll the grid viewport down by 400px to bring the next batch into DOM
+                can_scroll_further = grid_frame.locator("body").evaluate("""
+                    () => {
+                        let container = document.querySelector('div[role="grid"], .ag-body-viewport, .MuiDataGrid-virtualScroller, div[class*="scroll"]') || document.body;
+                        let startPos = container.scrollTop;
+                        container.scrollBy(0, 400);
+                        return container.scrollTop > startPos;
                     }
+                """)
 
-                    if (foundIds.size === previousSize) {
-                        unchangedRounds++;
-                    } else {
-                        unchangedRounds = 0;
-                        previousSize = foundIds.size;
-                    }
+                if not found_new_in_pass and not can_scroll_further:
+                    consecutive_empty_scrolls += 1
+                elif found_new_in_pass:
+                    consecutive_empty_scrolls = 0
 
-                    container.scrollBy(0, 600);
-                    await new Promise(resolve => setTimeout(resolve, 600));
-                }
+                page.wait_for_timeout(1500)
 
-                container.scrollTo(0, 0);
-                return Array.from(foundIds);
-            }
-            """
-            
-            found_call_ids = grid_frame.locator("body").evaluate(js_scroll_and_extract)
-            print(f"\nSUCCESS! Found {len(found_call_ids)} total Call IDs for Today.")
-
-            # --- PROCESS CALL IDs ---
-            for call_id in found_call_ids:
-                print(f"\n--- Processing Call ID: {call_id} ---")
-
-                # Deduplication Check
-                if is_already_in_drive(drive_service, call_id):
-                    print(f"Skipping Call ID {call_id} (Already exists in Google Drive).")
-                    continue
-                
-                try:
-                    # 1. Scroll & Click Call ID Button
-                    call_btn = grid_frame.get_by_role("button", name=call_id).first
-                    call_btn.scroll_into_view_if_needed()
-                    call_btn.click(force=True)
-                    page.wait_for_timeout(1500)
-                    
-                    # 2. Click 'Explore View Transcript'
-                    grid_frame.get_by_role("menuitem", name=re.compile("View Transcript")).click()
-                    print("Opened transcript modal...")
-                    page.wait_for_timeout(4000) 
-                    
-                    # 3. Click 3-Dots dropdown
-                    transcripts_frame.get_by_test_id("Dropdown").get_by_role("button", name="Transcript").click()
-                    page.wait_for_timeout(1500)
-
-                    # 4. Intercept Download
-                    print("Intercepting transcript download...")
-                    with page.expect_download(timeout=15000) as download_info:
-                        transcripts_frame.get_by_role("menuitem", name="Download Transcript").click()
-                    
-                    download = download_info.value
-                    temp_filepath = os.path.join(os.getcwd(), download.suggested_filename)
-                    download.save_as(temp_filepath)
-                    
-                    with open(temp_filepath, "r", encoding="utf-8") as f:
-                        file_content = f.read()
-                        
-                    # 5. Upload & Cleanup Local Copy
-                    upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
-                    os.remove(temp_filepath)
-                    
-                    # 6. Close Modal
-                    page.keyboard.press("Escape")
-                    page.wait_for_timeout(2000)
-                    
-                except Exception as ex:
-                    print(f"Failed to process Call ID {call_id}. Error: {ex}")
-                    if not page.is_closed():
-                        page.keyboard.press("Escape")
-                        page.wait_for_timeout(2000)
+            print(f"\nSUCCESS! Completed extraction. Processed {len(processed_call_ids)} total calls.")
 
         except Exception as e:
             print(f"Navigation error: {e}")
