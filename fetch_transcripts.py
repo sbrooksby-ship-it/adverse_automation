@@ -108,7 +108,6 @@ def run_hourly_extraction():
                 print("Active session detected! AI Insights is visible.")
 
             print("Navigating to AI Insights...")
-            # Target the parent container safely or navigate directly via URL
             if page.locator(".HomeCard-icon").first.is_visible():
                 page.locator(".HomeCard-icon").first.click(force=True)
             
@@ -182,11 +181,17 @@ def run_hourly_extraction():
                         upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
                         os.remove(temp_filepath)
 
-                        close_btn = transcripts_frame.get_by_role("button", name=re.compile(r"^(Close|Cancel)$", re.I))
-                        if close_btn.is_visible():
-                            close_btn.click()
+                        # SAFELY CLOSE MODAL AVOIDING STRICT MODE VIOLATIONS
+                        close_btn = transcripts_frame.get_by_role("button", name="Close")
+                        cancel_btn = transcripts_frame.get_by_role("button", name="Cancel")
+                        
+                        if close_btn.count() > 0 and close_btn.first.is_visible():
+                            close_btn.first.click()
+                        elif cancel_btn.count() > 0 and cancel_btn.first.is_visible():
+                            cancel_btn.first.click()
                         else:
                             page.keyboard.press("Escape")
+                            
                         page.wait_for_timeout(1500)
 
                     except Exception as ex:
