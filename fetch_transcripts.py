@@ -97,7 +97,6 @@ def run_hourly_extraction():
                 password_field.click()
                 password_field.fill(FIVE9_PASS)
                 
-                # Explicit button click (No Enter key)
                 page.get_by_role("button", name="Sign In").click()
                 
                 print("Credentials submitted. Waiting for dashboard...")
@@ -109,10 +108,11 @@ def run_hourly_extraction():
                 print("Active session detected! AI Insights is visible.")
 
             print("Navigating to AI Insights...")
-            if page.locator(".HomeCard-icon > path").first.is_visible():
-                page.locator(".HomeCard-icon > path").first.click()
+            # Target the parent container safely or navigate directly via URL
+            if page.locator(".HomeCard-icon").first.is_visible():
+                page.locator(".HomeCard-icon").first.click(force=True)
             
-            page.goto("https://admin.us.five9.net/ai-insights")
+            page.goto("https://admin.us.five9.net/ai-insights", wait_until="domcontentloaded")
             page.wait_for_timeout(6000)
 
             # --- DEFINE IFRAME HIERARCHY ---
@@ -121,8 +121,7 @@ def run_hourly_extraction():
             grid_frame = transcripts_frame.frame_locator('iframe')
 
             print("Navigating to Transcripts tab...")
-            ai_frame.get_by_text("Transcripts").click()
-            ai_frame.get_by_role("menuitem", name="Transcripts").click()
+            ai_frame.get_by_text("Transcripts").first.click()
             page.wait_for_timeout(4000)
 
             # --- APPLY DATE FILTER ---
@@ -143,7 +142,6 @@ def run_hourly_extraction():
             consecutive_empty_scrolls = 0
 
             while consecutive_empty_scrolls < 5:
-                # Target call buttons (6-12 digit call IDs)
                 visible_buttons = grid_frame.get_by_role("button", name=re.compile(r"^\d{6,12}$")).all()
                 found_new_in_pass = False
 
@@ -161,16 +159,13 @@ def run_hourly_extraction():
                             print(f"Skipping Call ID {call_id} (Already exists in Google Drive).")
                             continue
 
-                        # Ensure element is visible and click
                         btn.scroll_into_view_if_needed()
                         btn.click(force=True)
                         page.wait_for_timeout(1500)
 
-                        # Open transcript view
                         grid_frame.get_by_role("menuitem", name=re.compile("View Transcript")).click()
                         page.wait_for_timeout(3000)
 
-                        # Open menu dropdown & download
                         transcripts_frame.get_by_test_id("Dropdown").get_by_role("button", name="Transcript").click()
                         page.wait_for_timeout(1000)
 
@@ -187,7 +182,6 @@ def run_hourly_extraction():
                         upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
                         os.remove(temp_filepath)
 
-                        # Close Modal (handles both 'Close' and 'Cancel' buttons)
                         close_btn = transcripts_frame.get_by_role("button", name=re.compile(r"^(Close|Cancel)$", re.I))
                         if close_btn.is_visible():
                             close_btn.click()
@@ -201,7 +195,6 @@ def run_hourly_extraction():
                             page.keyboard.press("Escape")
                             page.wait_for_timeout(1500)
 
-                # Scroll the actual internal scrollable container inside the grid frame
                 can_scroll_further = grid_frame.locator("body").evaluate("""
                     () => {
                         const elements = Array.from(document.querySelectorAll('*'));
