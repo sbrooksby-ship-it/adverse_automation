@@ -81,7 +81,7 @@ def run_hourly_extraction():
         try:
             print("Navigating to Five9 Admin Console...")
             page.goto("https://admin.us.five9.net/", wait_until="networkidle")
-            page.wait_for_timeout(5000) 
+            page.wait_for_timeout(3000) 
 
             # --- LOGIN DETECTOR ---
             dashboard_visible = page.get_by_text("AI Insights").first.is_visible()
@@ -96,6 +96,8 @@ def run_hourly_extraction():
                 password_field = page.get_by_role("textbox", name="Password Password")
                 password_field.click()
                 password_field.fill(FIVE9_PASS)
+                
+                # Explicit button click (No Enter key)
                 page.get_by_role("button", name="Sign In").click()
                 
                 print("Credentials submitted. Waiting for dashboard...")
@@ -106,8 +108,11 @@ def run_hourly_extraction():
             else:
                 print("Active session detected! AI Insights is visible.")
 
-            print("Clicking AI Insights tile...")
-            page.locator("div").filter(has_text=re.compile(r"^AI InsightsExplore actionable AI-driven analytics$")).first.click()
+            print("Navigating to AI Insights...")
+            if page.locator(".HomeCard-icon > path").first.is_visible():
+                page.locator(".HomeCard-icon > path").first.click()
+            
+            page.goto("https://admin.us.five9.net/ai-insights")
             page.wait_for_timeout(6000)
 
             # --- DEFINE IFRAME HIERARCHY ---
@@ -117,22 +122,16 @@ def run_hourly_extraction():
 
             print("Navigating to Transcripts tab...")
             ai_frame.get_by_text("Transcripts").click()
-            page.wait_for_timeout(5000)
+            ai_frame.get_by_role("menuitem", name="Transcripts").click()
+            page.wait_for_timeout(4000)
 
-            # --- APPLY RELIABLE FILTERS ---
-            print("Applying filter combinations...")
-            grid_frame.get_by_test_id("filter-token").nth(2).click()
-            grid_frame.get_by_test_id("surface-content").get_by_role("combobox", name="any value").click()
-            grid_frame.get_by_role("dialog", name="contains contains Add").get_by_placeholder("any value").fill("Customer Sale")
-            grid_frame.get_by_role("button", name="Done").click()
-
+            # --- APPLY DATE FILTER ---
+            print("Setting date filter to 'Today'...")
             grid_frame.get_by_role("button", name="Last 7 Days").click()
+            page.wait_for_timeout(1000)
+            
             grid_frame.get_by_role("menuitem", name="Today").click()
-
-            grid_frame.get_by_role("button", name="contains Customer Sale").click()
-            grid_frame.locator("div").filter(has_text=re.compile(r"^Customer SaleDelete$")).click()
-            grid_frame.get_by_role("dialog", name="contains contains Customer").get_by_label("any value").fill("New Sales")
-            grid_frame.get_by_role("button", name="Done").click()
+            page.wait_for_timeout(1000)
 
             print("Clicking 'Update' refresh button...")
             grid_frame.get_by_role("button", name="Update").click()
@@ -143,8 +142,8 @@ def run_hourly_extraction():
             processed_call_ids = set()
             consecutive_empty_scrolls = 0
 
-            while consecutive_empty_scrolls < 4:
-                # Find all currently visible call buttons (matching 6 to 12 digit IDs)
+            while consecutive_empty_scrolls < 5:
+                # Target call buttons (6-12 digit call IDs)
                 visible_buttons = grid_frame.get_by_role("button", name=re.compile(r"^\d{6,12}$")).all()
                 found_new_in_pass = False
 
@@ -188,8 +187,12 @@ def run_hourly_extraction():
                         upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
                         os.remove(temp_filepath)
 
-                        # Close Modal
-                        transcripts_frame.get_by_role("button", name="Close").click()
+                        # Close Modal (handles both 'Close' and 'Cancel' buttons)
+                        close_btn = transcripts_frame.get_by_role("button", name=re.compile(r"^(Close|Cancel)$", re.I))
+                        if close_btn.is_visible():
+                            close_btn.click()
+                        else:
+                            page.keyboard.press("Escape")
                         page.wait_for_timeout(1500)
 
                     except Exception as ex:
@@ -198,13 +201,19 @@ def run_hourly_extraction():
                             page.keyboard.press("Escape")
                             page.wait_for_timeout(1500)
 
-                # Scroll the grid viewport down by 400px to bring the next batch into DOM
+                # Scroll the actual internal scrollable container inside the grid frame
                 can_scroll_further = grid_frame.locator("body").evaluate("""
                     () => {
-                        let container = document.querySelector('div[role="grid"], .ag-body-viewport, .MuiDataGrid-virtualScroller, div[class*="scroll"]') || document.body;
-                        let startPos = container.scrollTop;
-                        container.scrollBy(0, 400);
-                        return container.scrollTop > startPos;
+                        const elements = Array.from(document.querySelectorAll('*'));
+                        const scrollable = elements.find(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY !== 'hidden');
+                        if (scrollable) {
+                            let startPos = scrollable.scrollTop;
+                            scrollable.scrollBy(0, 350);
+                            return scrollable.scrollTop > startPos;
+                        }
+                        let startPos = document.body.scrollTop || document.documentElement.scrollTop;
+                        window.scrollBy(0, 350);
+                        return (document.body.scrollTop || document.documentElement.scrollTop) > startPos;
                     }
                 """)
 
