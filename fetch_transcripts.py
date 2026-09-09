@@ -140,24 +140,33 @@ def run_hourly_extraction():
             processed_call_ids = set()
             consecutive_empty_scrolls = 0
 
-            while consecutive_empty_scrolls < 5:
-                visible_buttons = grid_frame.get_by_role("button", name=re.compile(r"^\d{6,12}$")).all()
-                found_new_in_pass = False
+            # Increased to 8 to give it plenty of time to reach the true bottom
+            while consecutive_empty_scrolls < 8: 
+                # 1. Get plain text of all Call IDs currently rendered in the DOM
+                visible_ids = grid_frame.locator("button").evaluate_all("""
+                    (buttons) => buttons
+                        .map(b => b.innerText.trim())
+                        .filter(text => /^\d{6,12}$/.test(text))
+                """)
+                
+                # 2. Find the calls we haven't handled yet
+                unprocessed_ids = [cid for cid in visible_ids if cid not in processed_call_ids]
 
-                for btn in visible_buttons:
+                if unprocessed_ids:
+                    # Process exactly ONE call, then let the loop restart to re-evaluate the DOM
+                    call_id = unprocessed_ids[0] 
+                    processed_call_ids.add(call_id)
+                    consecutive_empty_scrolls = 0  # Reset scroll counter
+                    
+                    print(f"\n--- Processing Call ID: {call_id} ---")
+
+                    if is_already_in_drive(drive_service, call_id):
+                        print(f"Skipping Call ID {call_id} (Already exists in Google Drive).")
+                        continue
+
                     try:
-                        call_id = btn.inner_text().strip()
-                        if call_id in processed_call_ids:
-                            continue
-
-                        processed_call_ids.add(call_id)
-                        found_new_in_pass = True
-                        print(f"\n--- Processing Call ID: {call_id} ---")
-
-                        if is_already_in_drive(drive_service, call_id):
-                            print(f"Skipping Call ID {call_id} (Already exists in Google Drive).")
-                            continue
-
+                        # Locate the specific button for this ID dynamically
+                        btn = grid_frame.get_by_role("button", name=call_id).first
                         btn.scroll_into_view_if_needed()
                         btn.click(force=True)
                         page.wait_for_timeout(1500)
@@ -199,28 +208,21 @@ def run_hourly_extraction():
                         if not page.is_closed():
                             page.keyboard.press("Escape")
                             page.wait_for_timeout(1500)
-
-                can_scroll_further = grid_frame.locator("body").evaluate("""
-                    () => {
-                        const elements = Array.from(document.querySelectorAll('*'));
-                        const scrollable = elements.find(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY !== 'hidden');
-                        if (scrollable) {
-                            let startPos = scrollable.scrollTop;
-                            scrollable.scrollBy(0, 350);
-                            return scrollable.scrollTop > startPos;
-                        }
-                        let startPos = document.body.scrollTop || document.documentElement.scrollTop;
-                        window.scrollBy(0, 350);
-                        return (document.body.scrollTop || document.documentElement.scrollTop) > startPos;
-                    }
-                """)
-
-                if not found_new_in_pass and not can_scroll_further:
+                
+                else:
+                    # 3. Everything currently on screen is processed. We must scroll down.
+                    print("No new calls visible. Scrolling down to load more...")
+                    
+                    # Move the mouse to the center of the screen and use the mouse wheel
+                    page.mouse.move(page.viewport_size['width'] / 2, page.viewport_size['height'] / 2)
+                    
+                    # Scroll down by 600 pixels
+                    page.mouse.wheel(delta_x=0, delta_y=600)
+                    
                     consecutive_empty_scrolls += 1
-                elif found_new_in_pass:
-                    consecutive_empty_scrolls = 0
-
-                page.wait_for_timeout(1500)
+                    
+                    # Give Five9's servers 3 seconds to fetch the next batch of calls
+                    page.wait_for_timeout(3000) 
 
             print(f"\nSUCCESS! Completed extraction. Processed {len(processed_call_ids)} total calls.")
 
