@@ -38,7 +38,7 @@ jobs:
       run: |
         echo "${{ secrets.CLIENT_SECRET_JSON }}" | tr -d ' \t\r\n' | base64 --decode > client_secret.json
 
-    # NEW: Cache Playwright login state so it doesn't have to log in from scratch every hour
+    # Cache Playwright login state so it doesn't have to log in from scratch every hour
     - name: Cache Playwright State
       uses: actions/cache@v3
       with:
@@ -56,11 +56,13 @@ jobs:
       run: |
         python fetch_transcripts.py
 
-    # NEW: If the script fails, upload the error_screenshot.png so you can see what went wrong in GitHub
-    - name: Upload Error Screenshot
-      if: failure()
+    # ALWAYS upload screenshots (both error and debug) so we can see what the bot sees
+    - name: Upload Screenshots
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: error-screenshot
-        path: error_screenshot.png
+        name: five9-screenshots
+        path: |
+          error_screenshot.png
+          debug_grid_state.png
         retention-days: 7
