@@ -135,6 +135,11 @@ def run_hourly_extraction():
             grid_frame.get_by_role("button", name="Update").click()
             page.wait_for_timeout(6000)
 
+            # --- ADD THIS DEBUG STEP ---
+            page.screenshot(path="debug_grid_state.png", full_page=True)
+            print("Saved debug_grid_state.png - Check GitHub Actions artifacts to see what the bot sees.")
+            # ---------------------------
+
             # --- ITERATIVE SCROLL AND PROCESS LOOP ---
             print("Processing virtualized grid items...")
             processed_call_ids = set()
@@ -142,11 +147,17 @@ def run_hourly_extraction():
 
             # Increased to 8 to give it plenty of time to reach the true bottom
             while consecutive_empty_scrolls < 8: 
-                # 1. Get plain text of all Call IDs currently rendered in the DOM
-                visible_ids = grid_frame.locator("button").evaluate_all("""
-                    (buttons) => buttons
-                        .map(b => b.innerText.trim())
-                        .filter(text => /^\d{6,12}$/.test(text))
+                
+                # 1. Broadened locator to check buttons, links, gridcells, etc.
+                # using r"""...""" so Python doesn't escape the \b and \d regex characters
+                visible_ids = grid_frame.locator("button, a, [role='gridcell'], [role='button'], .ag-cell").evaluate_all(r"""
+                    (elements) => elements
+                        .map(el => el.innerText.trim())
+                        .map(text => {
+                            let match = text.match(/\b(\d{6,12})\b/);
+                            return match ? match[1] : null;
+                        })
+                        .filter(id => id !== null)
                 """)
                 
                 # 2. Find the calls we haven't handled yet
@@ -166,7 +177,7 @@ def run_hourly_extraction():
 
                     try:
                         # Locate the specific button for this ID dynamically
-                        btn = grid_frame.get_by_role("button", name=call_id).first
+                        btn = grid_frame.get_by_role("button", name=re.compile(call_id)).first
                         btn.scroll_into_view_if_needed()
                         btn.click(force=True)
                         page.wait_for_timeout(1500)
@@ -213,10 +224,8 @@ def run_hourly_extraction():
                     # 3. Everything currently on screen is processed. We must scroll down.
                     print("No new calls visible. Scrolling down to load more...")
                     
-                    # Move the mouse to the center of the screen and use the mouse wheel
-                    page.mouse.move(page.viewport_size['width'] / 2, page.viewport_size['height'] / 2)
-                    
-                    # Scroll down by 600 pixels
+                    # Force focus onto the body of the specific iframe before scrolling
+                    grid_frame.locator("body").click(force=True) 
                     page.mouse.wheel(delta_x=0, delta_y=600)
                     
                     consecutive_empty_scrolls += 1
