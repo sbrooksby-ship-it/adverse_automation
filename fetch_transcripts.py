@@ -154,7 +154,8 @@ def run_hourly_extraction():
                     (elements) => elements
                         .map(el => el.innerText.trim())
                         .map(text => {
-                            let match = text.match(/\b(\d{6,12})\b/);
+                            // Updated regex to precisely match 7-digit Call IDs
+                            let match = text.match(/\b(\d{7})\b/);
                             return match ? match[1] : null;
                         })
                         .filter(id => id !== null)
