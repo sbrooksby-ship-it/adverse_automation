@@ -52,6 +52,8 @@ jobs:
         FIVE9_USER: ${{ secrets.FIVE9_USER }}
         FIVE9_PASS: ${{ secrets.FIVE9_PASS }}
         GOOGLE_FOLDER_ID: ${{ secrets.GOOGLE_FOLDER_ID }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         HEADLESS_MODE: "true"
       run: |
         python fetch_transcripts.py
