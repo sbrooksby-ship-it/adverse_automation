@@ -1,9 +1,9 @@
-name: Hourly Five9 Scraper
+name: Daily Five9 Scraper
 
 on:
   schedule:
-    - cron: '0 * * * *' # Runs automatically at the top of every hour
-  workflow_dispatch:    # Adds a button so you can run it manually at any time
+    - cron: '34 16 * * *' # Daily at 10:34 AM Mountain Time (16:34 UTC)
+  workflow_dispatch:      # Allows manual trigger via GitHub interface
 
 jobs:
   scrape:
@@ -29,10 +29,7 @@ jobs:
           TOKEN_PICKLE_B64: ${{ secrets.TOKEN_PICKLE_B64 }}
           CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
         run: |
-          # Safely decode the binary token.pickle
           echo "$TOKEN_PICKLE_B64" | base64 --decode > token.pickle
-          
-          # Create the client_secret.json file
           echo "$CLIENT_SECRET_JSON" > client_secret.json
 
       - name: Run Playwright Scraper
@@ -40,10 +37,9 @@ jobs:
           FIVE9_USER: ${{ secrets.FIVE9_USER }}
           FIVE9_PASS: ${{ secrets.FIVE9_PASS }}
           HEADLESS_MODE: "true"
-        # CHANGE THIS to match the actual name of your Python file
-        run: python scraper.py
+        run: python Sales_auto.py
 
-      - name: Upload Debug Artifacts (On Failure/Success)
+      - name: Upload Debug Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
