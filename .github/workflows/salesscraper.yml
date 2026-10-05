@@ -41,7 +41,7 @@ jobs:
           FIVE9_PASS: ${{ secrets.FIVE9_PASS }}
           HEADLESS_MODE: "true"
         # CHANGE THIS to match the actual name of your Python file
-        run: python scraper.py
+        run: Sales_auto.py
 
       - name: Upload Debug Artifacts (On Failure/Success)
         if: always()
