@@ -2,7 +2,7 @@ name: Hourly Five9 Scraper
 
 on:
   schedule:
-    - cron: '0 * * * *' # Runs automatically at the top of every hour
+    - cron: '34 16 * * *' # Daily at 10:34 AM Mountain Time (16:34 UTC)
   workflow_dispatch:    # Adds a button so you can run it manually at any time
 
 jobs:
