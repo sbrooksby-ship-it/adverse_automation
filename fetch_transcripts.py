@@ -10,12 +10,14 @@ from googleapiclient.http import MediaInMemoryUpload
 from playwright.sync_api import sync_playwright
 
 # --- CONFIGURATION & ENV VARS ---
-FIVE9_USER = os.environ.get("FIVE9_USER")
-FIVE9_PASS = os.environ.get("FIVE9_PASS")
-GOOGLE_FOLDER_ID = os.environ.get("GOOGLE_FOLDER_ID", "1OC6DngtZwWse5o9DTqI8P2sIiSddn5vv")
+FIVE9_USER = os.environ.get("FIVE9_USER", "div5vcc@bonadmin.com")
+FIVE9_PASS = os.environ.get("FIVE9_PASS", "Div5Rules!")
+# Updated Google Drive Folder ID
+GOOGLE_FOLDER_ID = os.environ.get("GOOGLE_FOLDER_ID", "1H5jrB7bxLLoneHY1GsG3aBsHKmMygvzZ")
 HANDLED_FOLDER_ID = "1I4Xfnuvm31-rhEXypFVqFkpqzjR-a5nU"
 CLIENT_SECRET_FILE = "client_secret.json"
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+
 # --- KANBAN BRIDGE (Gemb admin: grading inbox in Supabase) ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
@@ -67,14 +69,7 @@ def upload_transcript_to_drive(drive_service, file_name, text_content):
 
 
 def enqueue_to_kanban(file_name, text_content, agent_name="unknown"):
-    """Bridge: scraped transcript -> Supabase Kanban backlog.
-
-    The grading daemon picks up `backlog` rows within ~2 min, grades them,
-    and stamps the transcript-extracted agent name onto the card (the
-    scraper passes "unknown" because Five9 filenames carry no agent name).
-    Stdlib only — no new pip packages. Skips gracefully when the Supabase
-    secrets are absent, and skips rows already queued (idempotent).
-    """
+    """Bridge: scraped transcript -> Supabase Kanban backlog."""
     import json as _json
     import urllib.request as _req
     import urllib.parse as _parse
@@ -130,8 +125,8 @@ def run_hourly_extraction():
 
             if not dashboard_visible:
                 print("Dashboard not found. Login required. Entering credentials...")
-                page.get_by_test_id("input").click()
-                page.get_by_test_id("input").fill(FIVE9_USER)
+                page.get_by_test_id("input").first.click()
+                page.get_by_test_id("input").first.fill(FIVE9_USER)
                 page.get_by_role("button", name="Next").click()
                 page.wait_for_timeout(2000)
 
@@ -150,7 +145,10 @@ def run_hourly_extraction():
                 print("Active session detected! AI Insights is visible.")
 
             print("Navigating to AI Insights...")
-            if page.locator(".HomeCard-icon").first.is_visible():
+            # Updated locator from your codegen
+            if page.locator("div").filter(has_text=re.compile(r"^AI InsightsExplore actionable AI-driven analytics$")).first.is_visible():
+                page.locator("div").filter(has_text=re.compile(r"^AI InsightsExplore actionable AI-driven analytics$")).first.click(force=True)
+            elif page.locator(".HomeCard-icon").first.is_visible():
                 page.locator(".HomeCard-icon").first.click(force=True)
 
             page.goto("https://admin.us.five9.net/ai-insights", wait_until="domcontentloaded")
@@ -162,55 +160,87 @@ def run_hourly_extraction():
             grid_frame = transcripts_frame.frame_locator('iframe')
 
             print("Navigating to Transcripts tab...")
-            ai_frame.get_by_text("Transcripts").first.click()
+            ai_frame.get_by_role("menuitem", name="Transcripts").first.click()
             page.wait_for_timeout(4000)
 
-            # --- APPLY DATE FILTER ---
+            # --- APPLY BASE DATE FILTER ---
             print("Setting date filter to 'Today'...")
             grid_frame.get_by_role("button", name="Last 7 Days").click()
             page.wait_for_timeout(1000)
-
             grid_frame.get_by_role("menuitem", name="Today").click()
             page.wait_for_timeout(1000)
+
+            # =========================================================
+            # --- NEW FILTERS FROM CODEGEN INJECTED HERE ---
+            # =========================================================
+            print("Applying custom data filters...")
+            
+            # Filter 1: First Checkbox Array
+            try:
+                grid_frame.get_by_test_id("filter-token").nth(3).click()
+                page.wait_for_timeout(1000)
+                grid_frame.locator("[id=\"-1815748261\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.get_by_role("button", name="Done").click()
+                page.wait_for_timeout(1000)
+            except Exception as e:
+                print(f"Warning: Issue clicking first custom filter: {e}")
+
+            # Filter 2: Duration >= 90
+            try:
+                grid_frame.get_by_role("button", name="is >=").click()
+                page.wait_for_timeout(500)
+                grid_frame.get_by_test_id("single-number").click()
+                grid_frame.get_by_test_id("single-number").fill("90")
+                grid_frame.locator("body").click(force=True) # Click away to apply
+                page.wait_for_timeout(1000)
+            except Exception as e:
+                print(f"Warning: Issue setting >= 90 filter: {e}")
+
+            # Filter 3: Call Types / Dispositions (LVM - Outreach, etc.)
+            try:
+                grid_frame.get_by_role("button", name="is any value").nth(4).click()
+                page.wait_for_timeout(1000)
+                grid_frame.locator("[id=\"548446974\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.locator("[id=\"75779\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.get_by_role("option", name="LVM - Outreach", exact=True).click()
+                grid_frame.locator("[id=\"-1798048617\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.locator("[id=\"1917852010\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.locator("[id=\"1614167563\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.get_by_role("button", name="Done").click()
+                page.wait_for_timeout(1000)
+            except Exception as e:
+                print(f"Warning: Issue setting LVM - Outreach filters: {e}")
+            # =========================================================
 
             print("Clicking 'Update' refresh button...")
             grid_frame.get_by_role("button", name="Update").click()
             page.wait_for_timeout(6000)
 
-            # --- ADD THIS DEBUG STEP ---
             page.screenshot(path="debug_grid_state.png", full_page=True)
-            print("Saved debug_grid_state.png - Check GitHub Actions artifacts to see what the bot sees.")
-            # ---------------------------
+            print("Saved debug_grid_state.png - Check artifacts to see the filtered table.")
 
             # --- ITERATIVE SCROLL AND PROCESS LOOP ---
             print("Processing virtualized grid items...")
             processed_call_ids = set()
             consecutive_empty_scrolls = 0
 
-            # Increased to 8 to give it plenty of time to reach the true bottom
             while consecutive_empty_scrolls < 8:
-
-                # 1. Broadened locator to check buttons, links, gridcells, etc.
-                # using r"""...""" so Python doesn't escape the \b and \d regex characters
                 visible_ids = grid_frame.locator("button, a, [role='gridcell'], [role='button'], .ag-cell").evaluate_all(r"""
                     (elements) => elements
                         .map(el => el.innerText.trim())
                         .map(text => {
-                            // Updated regex to precisely match 7-digit Call IDs
                             let match = text.match(/\b(\d{7})\b/);
                             return match ? match[1] : null;
                         })
                         .filter(id => id !== null)
                 """)
 
-                # 2. Find the calls we haven't handled yet
                 unprocessed_ids = [cid for cid in visible_ids if cid not in processed_call_ids]
 
                 if unprocessed_ids:
-                    # Process exactly ONE call, then let the loop restart to re-evaluate the DOM
                     call_id = unprocessed_ids[0]
                     processed_call_ids.add(call_id)
-                    consecutive_empty_scrolls = 0  # Reset scroll counter
+                    consecutive_empty_scrolls = 0 
 
                     print(f"\n--- Processing Call ID: {call_id} ---")
 
@@ -219,7 +249,6 @@ def run_hourly_extraction():
                         continue
 
                     try:
-                        # Locate the specific button for this ID dynamically
                         btn = grid_frame.get_by_role("button", name=re.compile(call_id)).first
                         btn.scroll_into_view_if_needed()
                         btn.click(force=True)
@@ -242,11 +271,9 @@ def run_hourly_extraction():
                             file_content = f.read()
 
                         upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
-                        # KANBAN BRIDGE: same transcript -> Supabase grading inbox (skips if secrets absent)
                         enqueue_to_kanban(download.suggested_filename, file_content)
                         os.remove(temp_filepath)
 
-                        # SAFELY CLOSE MODAL AVOIDING STRICT MODE VIOLATIONS
                         close_btn = transcripts_frame.get_by_role("button", name="Close")
                         cancel_btn = transcripts_frame.get_by_role("button", name="Cancel")
 
@@ -266,16 +293,10 @@ def run_hourly_extraction():
                             page.wait_for_timeout(1500)
 
                 else:
-                    # 3. Everything currently on screen is processed. We must scroll down.
                     print("No new calls visible. Scrolling down to load more...")
-
-                    # Force focus onto the body of the specific iframe before scrolling
                     grid_frame.locator("body").click(force=True)
                     page.mouse.wheel(delta_x=0, delta_y=600)
-
                     consecutive_empty_scrolls += 1
-
-                    # Give Five9's servers 3 seconds to fetch the next batch of calls
                     page.wait_for_timeout(3000)
 
             print(f"\nSUCCESS! Completed extraction. Processed {len(processed_call_ids)} total calls.")
