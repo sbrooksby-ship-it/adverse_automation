@@ -171,19 +171,31 @@ def run_hourly_extraction():
             page.wait_for_timeout(1000)
 
             # =========================================================
-            # --- NEW FILTERS FROM CODEGEN INJECTED HERE ---
+            # --- UPDATED FILTERS FROM CODEGEN INJECTED HERE ---
             # =========================================================
             print("Applying custom data filters...")
             
-            # Filter 1: First Checkbox Array
+            # Filter 1: Skill Name Checkbox Array
             try:
                 grid_frame.get_by_test_id("filter-token").nth(3).click()
-                page.wait_for_timeout(1000)
-                grid_frame.locator("[id=\"-1815748261\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                page.wait_for_timeout(800)
+
+                # If clicking nth(3) activates/shifts the token pill, open nth(4) as captured in codegen
+                if not grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0 > svg").first.is_visible():
+                    if grid_frame.get_by_test_id("filter-token").nth(4).is_visible():
+                        grid_frame.get_by_test_id("filter-token").nth(4).click()
+                        page.wait_for_timeout(800)
+
+                skill_id_checkbox = grid_frame.locator('[id="-1815748261"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg')
+                if skill_id_checkbox.is_visible():
+                    skill_id_checkbox.click(force=True)
+                else:
+                    grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0 > svg").first.click(force=True)
+
                 grid_frame.get_by_role("button", name="Done").click()
                 page.wait_for_timeout(1000)
             except Exception as e:
-                print(f"Warning: Issue clicking first custom filter: {e}")
+                print(f"Warning: Issue clicking Skill Name filter: {e}")
 
             # Filter 2: Duration >= 90
             try:
@@ -196,20 +208,30 @@ def run_hourly_extraction():
             except Exception as e:
                 print(f"Warning: Issue setting >= 90 filter: {e}")
 
-            # Filter 3: Call Types / Dispositions (LVM - Outreach, etc.)
+            # Filter 3: Call Types / Dispositions (All 12 Dispositions)
             try:
                 grid_frame.get_by_role("button", name="is any value").nth(4).click()
                 page.wait_for_timeout(1000)
-                grid_frame.locator("[id=\"548446974\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
-                grid_frame.locator("[id=\"75779\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
-                grid_frame.get_by_role("option", name="LVM - Outreach", exact=True).click()
-                grid_frame.locator("[id=\"-1798048617\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
-                grid_frame.locator("[id=\"1917852010\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
-                grid_frame.locator("[id=\"1614167563\"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg").click(force=True)
+                grid_frame.get_by_role("combobox").nth(1).click()
+                page.wait_for_timeout(800)
+
+                grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0 > svg").first.click(force=True)
+                grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0.YZEGd > svg").first.click(force=True)
+                grid_frame.locator('[id="-1116953908"] > .Flex-sc-1ak395a-0').click(force=True)
+                grid_frame.locator('[id="898302833"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="2085989673"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="272370864"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="548446974"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="75779"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0').click(force=True)
+                grid_frame.locator('[id="-1670000171"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="-1798048617"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="1917852010"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+                grid_frame.locator('[id="1614167563"] > .Flex-sc-1ak395a-0 > .FauxCheckbox-sc-1yuna8r-0 > svg').click(force=True)
+
                 grid_frame.get_by_role("button", name="Done").click()
                 page.wait_for_timeout(1000)
             except Exception as e:
-                print(f"Warning: Issue setting LVM - Outreach filters: {e}")
+                print(f"Warning: Issue setting Disposition filters: {e}")
             # =========================================================
 
             print("Clicking 'Update' refresh button...")
