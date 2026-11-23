@@ -208,12 +208,29 @@ def run_hourly_extraction():
             except Exception as e:
                 print(f"Warning: Issue setting >= 90 filter: {e}")
 
-            # Filter 3: Call Types / Dispositions (All 12 Dispositions)
+            # Filter 3: Exclude Call Types / Dispositions ("doesn't contain" + All 12 Dispositions)
             try:
                 grid_frame.get_by_role("button", name="is any value").nth(4).click()
                 page.wait_for_timeout(1000)
+
+                # Open operator combobox and explicitly select "doesn't contain"
                 grid_frame.get_by_role("combobox").nth(1).click()
+                page.wait_for_timeout(500)
+                if grid_frame.get_by_role("option", name="doesn't contain", exact=True).is_visible():
+                    grid_frame.get_by_role("option", name="doesn't contain", exact=True).click()
+                else:
+                    page.keyboard.type("doesn't contain")
+                    page.keyboard.press("Enter")
                 page.wait_for_timeout(800)
+
+                # Ensure the "any value" suggestion checkbox list is open
+                if not grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0").first.is_visible():
+                    any_val = grid_frame.get_by_label("any value").first
+                    if any_val.is_visible():
+                        any_val.click()
+                    elif grid_frame.get_by_text("any value", exact=True).first.is_visible():
+                        grid_frame.get_by_text("any value", exact=True).first.click()
+                    page.wait_for_timeout(800)
 
                 grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0 > svg").first.click(force=True)
                 grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0.YZEGd > svg").first.click(force=True)
