@@ -18,10 +18,6 @@ HANDLED_FOLDER_ID = "1I4Xfnuvm31-rhEXypFVqFkpqzjR-a5nU"
 CLIENT_SECRET_FILE = "client_secret.json"
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
-# --- KANBAN BRIDGE (Gemb admin: grading inbox in Supabase) ---
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-
 
 def get_drive_service():
     """Authenticates using stored token or initiates OAuth flow."""
@@ -66,38 +62,6 @@ def upload_transcript_to_drive(drive_service, file_name, text_content):
         fields="id"
     ).execute()
     print(f"Uploaded '{file_name}' to Drive. (ID: {uploaded_file.get('id')})")
-
-
-def enqueue_to_kanban(file_name, text_content, agent_name="unknown"):
-    """Bridge: scraped transcript -> Supabase Kanban backlog."""
-    import json as _json
-    import urllib.request as _req
-    import urllib.parse as _parse
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        print("Kanban enqueue skipped (SUPABASE_URL/SUPABASE_SERVICE_KEY not set).")
-        return False
-    headers = {"apikey": SUPABASE_SERVICE_KEY,
-               "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-               "Content-Type": "application/json"}
-    try:
-        chk = _req.Request(
-            f"{SUPABASE_URL}/rest/v1/call_kanban_queue?call_id=eq.{_parse.quote(file_name)}&select=id",
-            headers=headers)
-        if _json.loads(_req.urlopen(chk, timeout=20).read() or b"[]"):
-            print(f"Kanban already has '{file_name}' — skipping.")
-            return True
-        payload = _json.dumps({"call_id": file_name, "agent_name": agent_name,
-                               "status": "backlog",
-                               "transcript_text": text_content}).encode()
-        post = _req.Request(f"{SUPABASE_URL}/rest/v1/call_kanban_queue",
-                            data=payload,
-                            headers={**headers, "Prefer": "return=minimal"})
-        _req.urlopen(post, timeout=30).read()
-        print(f"Enqueued '{file_name}' to Kanban backlog.")
-        return True
-    except Exception as e:
-        print(f"Kanban enqueue failed for '{file_name}': {e}")
-        return False
 
 
 def run_hourly_extraction():
@@ -145,7 +109,6 @@ def run_hourly_extraction():
                 print("Active session detected! AI Insights is visible.")
 
             print("Navigating to AI Insights...")
-            # Updated locator from your codegen
             if page.locator("div").filter(has_text=re.compile(r"^AI InsightsExplore actionable AI-driven analytics$")).first.is_visible():
                 page.locator("div").filter(has_text=re.compile(r"^AI InsightsExplore actionable AI-driven analytics$")).first.click(force=True)
             elif page.locator(".HomeCard-icon").first.is_visible():
@@ -171,16 +134,15 @@ def run_hourly_extraction():
             page.wait_for_timeout(1000)
 
             # =========================================================
-            # --- UPDATED FILTERS FROM CODEGEN INJECTED HERE ---
+            # --- UPDATED FILTERS FROM CODEGEN ---
             # =========================================================
             print("Applying custom data filters...")
-            
+
             # Filter 1: Skill Name Checkbox Array
             try:
                 grid_frame.get_by_test_id("filter-token").nth(3).click()
                 page.wait_for_timeout(800)
 
-                # If clicking nth(3) activates/shifts the token pill, open nth(4) as captured in codegen
                 if not grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0 > svg").first.is_visible():
                     if grid_frame.get_by_test_id("filter-token").nth(4).is_visible():
                         grid_frame.get_by_test_id("filter-token").nth(4).click()
@@ -203,7 +165,7 @@ def run_hourly_extraction():
                 page.wait_for_timeout(500)
                 grid_frame.get_by_test_id("single-number").click()
                 grid_frame.get_by_test_id("single-number").fill("90")
-                grid_frame.locator("body").click(force=True) # Click away to apply
+                grid_frame.locator("body").click(force=True)
                 page.wait_for_timeout(1000)
             except Exception as e:
                 print(f"Warning: Issue setting >= 90 filter: {e}")
@@ -213,7 +175,6 @@ def run_hourly_extraction():
                 grid_frame.get_by_role("button", name="is any value").nth(4).click()
                 page.wait_for_timeout(1000)
 
-                # Open operator combobox and explicitly select "doesn't contain"
                 grid_frame.get_by_role("combobox").nth(1).click()
                 page.wait_for_timeout(500)
                 if grid_frame.get_by_role("option", name="doesn't contain", exact=True).is_visible():
@@ -223,7 +184,6 @@ def run_hourly_extraction():
                     page.keyboard.press("Enter")
                 page.wait_for_timeout(800)
 
-                # Ensure the "any value" suggestion checkbox list is open
                 if not grid_frame.locator(".FauxCheckbox-sc-1yuna8r-0").first.is_visible():
                     any_val = grid_frame.get_by_label("any value").first
                     if any_val.is_visible():
@@ -264,7 +224,7 @@ def run_hourly_extraction():
             consecutive_empty_scrolls = 0
 
             while consecutive_empty_scrolls < 8:
-                visible_ids = grid_frame.locator("button, a, [role='gridcell'], [role='button'], .ag-cell").evaluate_all(r"""
+                visible_ids = grid_frame.locator("button, a, [role='button']").evaluate_all(r"""
                     (elements) => elements
                         .map(el => el.innerText.trim())
                         .map(text => {
@@ -279,7 +239,7 @@ def run_hourly_extraction():
                 if unprocessed_ids:
                     call_id = unprocessed_ids[0]
                     processed_call_ids.add(call_id)
-                    consecutive_empty_scrolls = 0 
+                    consecutive_empty_scrolls = 0
 
                     print(f"\n--- Processing Call ID: {call_id} ---")
 
@@ -289,18 +249,28 @@ def run_hourly_extraction():
 
                     try:
                         btn = grid_frame.get_by_role("button", name=re.compile(call_id)).first
-                        btn.scroll_into_view_if_needed()
-                        btn.click(force=True)
-                        page.wait_for_timeout(1500)
+                        if btn.count() == 0:
+                            print(f"Call ID {call_id} not rendered as a clickable button — skipping.")
+                            continue
 
-                        grid_frame.get_by_role("menuitem", name=re.compile("View Transcript")).click()
+                        btn.scroll_into_view_if_needed(timeout=5000)
+                        btn.click(force=True, timeout=5000)
+                        page.wait_for_timeout(1000)
+
+                        view_item = grid_frame.get_by_role("menuitem", name=re.compile("View Transcript")).first
+                        if not view_item.is_visible():
+                            # Retry click once in case the row shifted during scroll
+                            btn.click(force=True, timeout=5000)
+                            page.wait_for_timeout(1000)
+
+                        view_item.click(timeout=8000)
                         page.wait_for_timeout(3000)
 
-                        transcripts_frame.get_by_test_id("Dropdown").get_by_role("button", name="Transcript").click()
+                        transcripts_frame.get_by_test_id("Dropdown").get_by_role("button", name="Transcript").click(timeout=8000)
                         page.wait_for_timeout(1000)
 
                         with page.expect_download(timeout=15000) as download_info:
-                            transcripts_frame.get_by_role("menuitem", name="Download Transcript").click()
+                            transcripts_frame.get_by_role("menuitem", name="Download Transcript").click(timeout=8000)
 
                         download = download_info.value
                         temp_filepath = os.path.join(os.getcwd(), download.suggested_filename)
@@ -310,7 +280,6 @@ def run_hourly_extraction():
                             file_content = f.read()
 
                         upload_transcript_to_drive(drive_service, download.suggested_filename, file_content)
-                        enqueue_to_kanban(download.suggested_filename, file_content)
                         os.remove(temp_filepath)
 
                         close_btn = transcripts_frame.get_by_role("button", name="Close")
@@ -329,7 +298,7 @@ def run_hourly_extraction():
                         print(f"Failed to process Call ID {call_id}. Error: {ex}")
                         if not page.is_closed():
                             page.keyboard.press("Escape")
-                            page.wait_for_timeout(1500)
+                            page.wait_for_timeout(1000)
 
                 else:
                     print("No new calls visible. Scrolling down to load more...")
